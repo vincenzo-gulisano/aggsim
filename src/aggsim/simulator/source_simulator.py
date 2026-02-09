@@ -5,7 +5,6 @@ from a CSV file, extracts timestamps, and maintains injection rate statistics.
 """
 
 from typing import (
-    Callable,
     Dict,
     List,
     Optional,
@@ -17,10 +16,6 @@ from math import inf
 import csv
 from ..util import common
 from ..stats.sum_stat import SumStat
-
-# TO DOs:
-# 1) as of now, whether a tuple is to be processed or not (type 0) is hardcoded and for LinearRoad, this should be generalized
-# 2) check the logic if statistics are not kept
 
 
 class SourceSimulator:

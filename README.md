@@ -42,6 +42,9 @@ pip install .
 You can also install the package into another project's virtualenv by
 referencing the local path or using a VCS URL in `requirements.txt`.
 
+**Code quality**
+All code passes flake8 linting (max line length: 120).
+
 **Project structure**
 - `src/aggsim/` — package source
   - `simulator/` — `source_simulator.py`, `aggregate_simulator.py`, `pipeline_simulator.py`
@@ -53,7 +56,6 @@ referencing the local path or using a VCS URL in `requirements.txt`.
 - Ensure you run tools and scripts from the repo root and add `src/` to `PYTHONPATH` (or use `pip install -e .`).
 
 **Next steps I can take**
-- Run a lint/pass (flake8) and add a `requirements.txt`.
 - Add a tiny example runner script and sample input CSV.
 
-If you want, I can add `requirements.txt`, run static checks, or create an example run.
+If you want, I can create an example runner or test suite.

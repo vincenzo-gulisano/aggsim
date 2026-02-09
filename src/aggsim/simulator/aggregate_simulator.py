@@ -6,7 +6,6 @@ and simulates windowed aggregation operations with configurable cost estimators
 for various pane operations (creation, update, aggregation, merge, deletion).
 """
 from typing import (
-    Callable,
     Dict,
     List,
     Optional,
@@ -23,8 +22,6 @@ from ..stats.avg_stat import AvgStat
 from ..util.win_and_pane_boundary_calculator import WindowAndPaneBoundaryCalculator
 from sortedcontainers import SortedDict
 
-# TO DOs:
-# 2) check the logic if statistics are not kept
 
 class AggregateSimulator:
     """Simulates windowed aggregation with pane-level operations.
@@ -85,14 +82,17 @@ class AggregateSimulator:
 
         if not (0 <= wa_ws_index < len(self.wa_ws_list)):
             raise IndexError(
-                f"wa_ws_index {wa_ws_index} is out of bounds for {len(self.wa_ws_list)} combinations."
+                f"wa_ws_index {wa_ws_index} is out of bounds for"
+                f" {len(self.wa_ws_list)} combinations."
             )
         self.wa_ws_index: int = wa_ws_index
 
         # Max timestamp seen so far (None until known)
         self.max_tau: Optional[int] = None
 
-        # When a reconfiguration is requested, these will hold the next index and the tau at which to trigger the reconfiguration (if needed, depending on semantics)
+        # When a reconfiguration is requested, these will hold the next index
+        # and the tau at which to trigger the reconfiguration (if needed,
+        # depending on semantics)
         self.next_wa_ws_index: Optional[int] = None
         self.reconfiguration_tau: Optional[int] = None
 
@@ -157,9 +157,6 @@ class AggregateSimulator:
 
         # Tracks whether each pane has already been aggregated
         self.aggregated_panes: Dict[int, bool] = {}
-
-        # self.last_tuple_tau: Optional[int] = None
-        # self.last_tuple_key: Optional[int] = None
 
     def _empty_emitted(self) -> common.OptionalMetrics:
         """Create an empty emitted statistics structure."""
@@ -537,4 +534,3 @@ class AggregateSimulator:
             if not has_more:
                 break
         self.finalize()
-

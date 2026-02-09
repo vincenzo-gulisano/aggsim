@@ -8,17 +8,18 @@ INJECTION_RATE_STAT_NAME: Final[str] = "injectionrate.rate"
 Metrics = List[List[Tuple[int, int]]]
 OptionalMetrics = Optional[Metrics]
 
+
 class Semantics(Enum):
     AMO = "AMO"  # At-Most-Once semantics
     EO = "EO"  # Exactly-Once semantics
-    
+
+
 class TupleType(Enum):
     NORMAL = "NORMAL"
     CHANGE = "CHANGE"
 
-# -----------------------------
+
 # Types / callables for clarity
-# -----------------------------
 # takes parsed CSV parts (List[str]), returns event time (e.g., epoch ms)
 extract_time_fn = Callable[[List[str]], int]
 # takes parsed CSV parts (List[str]), returns a key (hashable)

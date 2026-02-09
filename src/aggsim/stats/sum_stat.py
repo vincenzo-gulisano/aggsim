@@ -7,9 +7,7 @@ fixed time intervals, with optional persistence to CSV files.
 
 from __future__ import annotations
 
-from typing import Optional
-
-from .base_stat import BaseStat, Rows
+from .base_stat import BaseStat
 
 
 class SumStat(BaseStat):

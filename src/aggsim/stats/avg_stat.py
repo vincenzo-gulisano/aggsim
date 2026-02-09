@@ -5,9 +5,7 @@ This module provides a class for collecting and computing averages over
 fixed time intervals, with optional persistence to CSV files.
 """
 
-from typing import Optional
-
-from .base_stat import BaseStat, Rows
+from .base_stat import BaseStat
 
 
 class AvgStat(BaseStat):
