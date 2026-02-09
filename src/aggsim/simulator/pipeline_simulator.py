@@ -10,9 +10,9 @@ from typing import List, Optional, Tuple
 from math import inf
 import pandas as pd
 
-from source_simulator import SourceSimulator
-from aggregate_simulator import AggregateSimulator
-from common import Metrics, OptionalMetrics
+from .source_simulator import SourceSimulator
+from .aggregate_simulator import AggregateSimulator
+from ..util.common import Metrics, OptionalMetrics
 
 
 class PipelineSimulator:

@@ -7,7 +7,7 @@ fixed time intervals, with optional persistence to CSV files.
 
 from typing import Optional
 
-from base_stat import BaseStat, Rows
+from .base_stat import BaseStat, Rows
 
 
 class AvgStat(BaseStat):

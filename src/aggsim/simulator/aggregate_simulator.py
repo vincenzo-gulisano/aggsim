@@ -17,10 +17,10 @@ from typing import (
 )
 from math import inf
 import csv
-import common
-from sum_stat import SumStat
-from avg_stat import AvgStat
-from win_and_pane_boundary_calculator import WindowAndPaneBoundaryCalculator
+from ..util import common
+from ..stats.sum_stat import SumStat
+from ..stats.avg_stat import AvgStat
+from ..util.win_and_pane_boundary_calculator import WindowAndPaneBoundaryCalculator
 from sortedcontainers import SortedDict
 
 # TO DOs:

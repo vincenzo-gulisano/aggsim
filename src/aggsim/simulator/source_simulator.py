@@ -15,8 +15,8 @@ from typing import (
 )
 from math import inf
 import csv
-import common
-from sum_stat import SumStat
+from ..util import common
+from ..stats.sum_stat import SumStat
 
 # TO DOs:
 # 1) as of now, whether a tuple is to be processed or not (type 0) is hardcoded and for LinearRoad, this should be generalized
