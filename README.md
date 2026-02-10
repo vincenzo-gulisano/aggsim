@@ -58,4 +58,15 @@ All code passes flake8 linting (max line length: 120).
 **Next steps I can take**
 - Add a tiny example runner script and sample input CSV.
 
-If you want, I can create an example runner or test suite.
+**Examples**
+- Example runner: see the `examples/` folder for a runnable demo and sample input.
+  The example script takes the input CSV and writes metric CSVs into the folder
+  passed via `--output-folder`.
+
+Example usage (from `examples/`):
+
+```bash
+python simulator.py --input input_data.csv --output data --semantics AMO --was 53,59 --wss 61,67 --wa-ws-index 0 --resolution 1000 --pane-creation 0.000001 --pane-update 0.000001 --pane-aggregation 0.000001 --pane-merge 0.000001 --pane-delete 0.000001 --tuple-sending 0
+```
+
+If you want, I can create an additional tiny test harness or CI checks.
