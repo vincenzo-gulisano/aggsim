@@ -187,4 +187,4 @@ if __name__ == "__main__":
     pipeline.run(print_every=100000)
     end_time = time.perf_counter()
 
-    print(f"\nPipeline simulation completed in {(end_time - start_time):.3f} seconds.")
+    print(f"Simulation completed in {(end_time - start_time):.3f} seconds.")
