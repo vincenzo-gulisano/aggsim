@@ -16,6 +16,25 @@ aggregation behavior and collects time-windowed statistics.
 pip install pandas sortedcontainers
 ```
 
+**Using conda**
+
+If you prefer to use conda, create and activate an environment named `aggsim` and install the required packages. Example using `conda` + `pip`:
+
+```bash
+conda create -n aggsim python=3.8 -y
+conda activate aggsim
+pip install pandas sortedcontainers
+```
+
+Or install packages from conda-forge directly:
+
+```bash
+conda create -n aggsim -c conda-forge python=3.8 pandas sortedcontainers -y
+conda activate aggsim
+```
+
+You can also export an `environment.yml` if you want reproducible environments.
+
 **Quick sanity check**
 From the repository root run:
 
@@ -66,7 +85,5 @@ All code passes flake8 linting (max line length: 120).
 Example usage (from `examples/`):
 
 ```bash
-python simulator.py --input input_data.csv --output data --semantics AMO --was 53,59 --wss 61,67 --wa-ws-index 0 --resolution 1000 --pane-creation 0.000001 --pane-update 0.000001 --pane-aggregation 0.000001 --pane-merge 0.000001 --pane-delete 0.000001 --tuple-sending 0
+python simulator.py --input input_data.csv --output-folder . --semantics AMO --was 53,59 --wss 61,67 --wa-ws-index 0 --resolution 1000 --pane-creation 0.000001 --pane-update 0.000001 --pane-aggregation 0.000001 --pane-merge 0.000001 --pane-delete 0.000001 --tuple-sending 0
 ```
-
-If you want, I can create an additional tiny test harness or CI checks.

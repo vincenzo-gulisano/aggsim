@@ -141,16 +141,16 @@ if __name__ == "__main__":
     pane_delete_est = make_estimator(args.pane_delete)
     tuple_sending_est = make_estimator(args.tuple_sending)
 
-    semantics = Semantics[args.semantics]
+    semantics = common.Semantics[args.semantics]
 
-    extractor = ExtractorFunctions(
+    extractor = common.ExtractorFunctions(
         extract_time=extract_time,
         extract_key=extract_key,
         extract_tuple_type=extract_tuple_type,
         extract_change_tuple_info=extract_change_tuple_info,
     )
 
-    estimators = EstimatorFunctions(
+    estimators = common.EstimatorFunctions(
         pane_creation_est=pane_creation_est,
         pane_update_est=pane_update_est,
         pane_aggregation_est=pane_aggregation_est,
