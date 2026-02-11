@@ -116,8 +116,17 @@ if __name__ == "__main__":
         return int(parts[2])
 
     def extract_tuple_type(parts: list) -> common.TupleType:
-        t_type = int(parts[0])
-        return common.TupleType.NORMAL if t_type == 0 else common.TupleType.CHANGE
+        # Map numeric codes to tuple types: 0 -> NORMAL, 1 -> CHANGE
+        # Any unknown code will be treated as IGNORE.
+        try:
+            t_type = int(parts[0])
+        except Exception:
+            return common.TupleType.IGNORE
+        if t_type == 0:
+            return common.TupleType.NORMAL
+        if t_type == 2:
+            return common.TupleType.CHANGE
+        return common.TupleType.IGNORE
 
     def extract_change_tuple_info(parts: list) -> tuple:
         # Extract window advance and size from parts[2] and parts[3]
@@ -159,6 +168,9 @@ if __name__ == "__main__":
         tuple_sending_est=tuple_sending_est,
     )
 
+    # Enable or disable writing metric CSVs to disk
+    write_to_disk = True  # change to False to keep metrics in-memory only
+
     agg_sim = AggregateSimulator(
         input_path=args.input,
         output_folder=args.output_folder,
@@ -170,6 +182,7 @@ if __name__ == "__main__":
         resolution=args.resolution,
         semantics=semantics,
         ts_offset=first_tuple_offset,
+        write_to_disk=write_to_disk,
     )
 
     source_sim = SourceSimulator(
@@ -179,6 +192,7 @@ if __name__ == "__main__":
         estimators=estimators,
         resolution=args.resolution,
         ts_offset=first_tuple_offset,
+        write_to_disk=write_to_disk,
     )
 
     pipeline = PipelineSimulator(source_sim, agg_sim)

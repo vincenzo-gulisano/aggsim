@@ -44,6 +44,7 @@ class AggregateSimulator:
         resolution: int,
         semantics: common.Semantics,
         ts_offset: int,
+        write_to_disk: bool = True,
     ) -> None:
         """Initialize the aggregate simulator.
 
@@ -68,6 +69,7 @@ class AggregateSimulator:
         self.extractor: common.ExtractorFunctions = extractor
         self.estimators: common.EstimatorFunctions = estimators
         self.resolution: int = int(resolution)
+        self.write_to_disk: bool = bool(write_to_disk)
 
         # -----------------------------------------
         # Build the list of (WA, WS) combinations
@@ -117,19 +119,29 @@ class AggregateSimulator:
 
         # Statistics
         self.throughput_stat: SumStat = SumStat(
-            self.output_folder + "/throughput.rate.csv", self.resolution, -1
+            self.output_folder + "/throughput.rate.csv", self.resolution, -1,
+            1,
+            True,
+            self.write_to_disk,
         )
         self.latency_stat: AvgStat = AvgStat(
-            self.output_folder + "/latency.average.csv", self.resolution, -1, 1000
+            self.output_folder + "/latency.average.csv", self.resolution, -1, 1000,
+            self.write_to_disk,
         )
         self.panes_stat: SumStat = SumStat(
-            self.output_folder + "/paneActive.count.csv", self.resolution, -1, 1, False
+            self.output_folder + "/paneActive.count.csv", self.resolution, -1, 1, False,
+            self.write_to_disk,
         )
         self.cpu_stat: SumStat = SumStat(
-            self.output_folder + "/cpu.csv", self.resolution, -1, 100
+            self.output_folder + "/cpu.csv", self.resolution, -1, 100,
+            True,
+            self.write_to_disk,
         )
         self.output_rate_stat: SumStat = SumStat(
-            self.output_folder + "/outrate.rate.csv", self.resolution, -1
+            self.output_folder + "/outrate.rate.csv", self.resolution, -1,
+            1,
+            True,
+            self.write_to_disk,
         )
         self.stats_initialized: bool = False
         self._metric_names: List[str] = [
@@ -396,7 +408,7 @@ class AggregateSimulator:
 
         return emitted
 
-    def __change(self, wa: int, ws: int) -> None:
+    def change(self, wa: int, ws: int) -> None:
         """Change the current (WA, WS) configuration to the specified values.
 
         For AMO semantics, schedules the reconfiguration at a future time.
@@ -483,7 +495,10 @@ class AggregateSimulator:
             emitted = self.__process(tau, k)
         elif t_type == common.TupleType.CHANGE:
             wa, ws = self.extractor.extract_change_tuple_info(parts)
-            self.__change(wa, ws)
+            self.change(wa, ws)
+        elif t_type == common.TupleType.IGNORE:
+            # Explicitly ignore this tuple
+            emitted = None
 
         return (self.delta, has_more, emitted)
 

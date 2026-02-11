@@ -33,6 +33,7 @@ class SourceSimulator:
         estimators: common.EstimatorFunctions,
         resolution: int,
         ts_offset: int,
+        write_to_disk: bool = True,
     ) -> None:
         """Initialize the source simulator.
 
@@ -50,11 +51,16 @@ class SourceSimulator:
         self.estimators: common.EstimatorFunctions = estimators
         self.resolution: int = int(resolution)
 
+        self.write_to_disk: bool = bool(write_to_disk)
+
         self.delta: float = -inf
         self.injection_rate_stat: SumStat = SumStat(
             self.output_folder + "/" + common.INJECTION_RATE_STAT_NAME + ".csv",
             self.resolution,
             0,
+            1,
+            True,
+            self.write_to_disk,
         )
         self.stats_initialized: bool = False
         self._metric_names: List[str] = [common.INJECTION_RATE_STAT_NAME]
@@ -183,6 +189,9 @@ class SourceSimulator:
         if t_type == common.TupleType.NORMAL:
             tau = self.extractor.extract_time(parts)
             emitted = self.__process(tau)
+        elif t_type == common.TupleType.IGNORE:
+            # Explicitly ignore this tuple
+            emitted = None
 
         return (self.delta, has_more, emitted)
 

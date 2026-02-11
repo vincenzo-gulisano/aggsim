@@ -17,6 +17,7 @@ class Semantics(Enum):
 class TupleType(Enum):
     NORMAL = "NORMAL"
     CHANGE = "CHANGE"
+    IGNORE = "IGNORE"
 
 
 # Types / callables for clarity
@@ -24,7 +25,8 @@ class TupleType(Enum):
 extract_time_fn = Callable[[List[str]], int]
 # takes parsed CSV parts (List[str]), returns a key (hashable)
 extract_key_fn = Callable[[List[str]], Any]
-# takes parsed CSV parts (List[str]), returns a tuple type (e.g., NORMAL or CHANGE)
+# takes parsed CSV parts (List[str]), returns a tuple type (e.g., NORMAL, CHANGE or IGNORE).
+# Implementations should return `TupleType.IGNORE` for tuples that should be skipped.
 extract_tuple_type_fn = Callable[[List[str]], TupleType]
 # takes parsed CSV parts (List[str]), returns a window advance and size for a change tuple
 extract_change_tuple_info = Callable[[List[str]], Tuple[int, int]]

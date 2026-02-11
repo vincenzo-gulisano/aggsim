@@ -42,6 +42,19 @@ class PipelineSimulator:
     def metric_names(self) -> List[str]:
         return self._metric_names
 
+    def change(self, wa: int, ws: int) -> None:
+        """Request a reconfiguration of the window configuration in the aggregate simulator.
+
+        Args:
+            wa: New Window Advance (WA).
+            ws: New Window Size (WS).
+
+        Raises:
+            ValueError: If the specified (WA, WS) combination is not valid.
+            RuntimeError: If the change cannot be scheduled (e.g., no tuples processed yet).
+        """
+        self.aggregate.change(wa, ws)
+
     def step(self) -> Tuple[float, bool, OptionalMetrics]:
         """Advance one component and return the current simulation state.
 
