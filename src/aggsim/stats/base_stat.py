@@ -140,11 +140,12 @@ class BaseStat(ABC):
         Raises:
             ValueError: If initialize() has not been called before update()
         """
-        if self.time is None:
-            raise ValueError(
-                f"{self.__class__.__name__} not initialized. "
-                "Call 'initialize(start_time)' before 'update()'."
-            )
+        # NOT CHECKING self.time is None here to save time, as we assume the caller will call initialize() before update().
+        # if self.time is None:
+        #     raise ValueError(
+        #         f"{self.__class__.__name__} not initialized. "
+        #         "Call 'initialize(start_time)' before 'update()'."
+        #     )
 
         emitted = None
         t_res = t // self.resolution

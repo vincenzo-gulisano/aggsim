@@ -34,6 +34,7 @@ class SourceSimulator:
         resolution: int,
         ts_offset: int,
         write_to_disk: bool = True,
+        stat_batch_update_length: int = 100,
     ) -> None:
         """Initialize the source simulator.
 
@@ -44,6 +45,7 @@ class SourceSimulator:
             estimators: EstimatorFunctions instance containing cost estimators.
             resolution: Time window resolution for statistics aggregation.
             ts_offset: Time offset to apply to all extracted timestamps.
+            stat_batch_update_length: Number of injection rate updates to accumulate before flushing (default: 100).
         """
         self.input_path: str = input_path
         self.output_folder: str = output_folder
@@ -52,6 +54,12 @@ class SourceSimulator:
         self.resolution: int = int(resolution)
 
         self.write_to_disk: bool = bool(write_to_disk)
+        self.stat_batch_update_length: int = stat_batch_update_length
+
+        # Batching state for injection rate stats
+        self._accumulated_injection_rate_count: int = 0
+        self._batch_update_count: int = 0
+        self._last_batch_time_window: Optional[int] = None
 
         self.delta: float = -inf
         self.injection_rate_stat: SumStat = SumStat(
@@ -105,10 +113,30 @@ class SourceSimulator:
             emitted[self._metric_idx[id]].extend(rows)
         return emitted
 
+    def _flush_stat_batches(self, emitted) -> common.OptionalMetrics:
+        """Flush accumulated batched injection rate stats.
+
+        Args:
+            emitted: Current emitted structure to update.
+
+        Returns:
+            Updated emitted structure with flushed stats.
+        """
+        if self._accumulated_injection_rate_count > 0:
+            emitted = self._collect_stat_rows(
+                common.INJECTION_RATE_STAT_NAME,
+                self.injection_rate_stat.update(self._accumulated_injection_rate_count, self.delta),
+                emitted,
+            )
+            self._accumulated_injection_rate_count = 0
+
+        self._batch_update_count = 0
+        return emitted
+
     def __process(self, tau: int) -> common.OptionalMetrics:
         """Process a single tuple with the given timestamp.
 
-        Updates the current time (delta) and injection rate statistics.
+        Updates the current time (delta) and injection rate statistics (batched).
 
         Args:
             tau: The timestamp of the tuple to process.
@@ -123,20 +151,29 @@ class SourceSimulator:
 
         # Update the current time
         self.delta = max(self.delta, tau)
+        current_time_window = int(self.delta // self.resolution)
 
         if not self.stats_initialized:
             # Initialize stats with the time of the first tuple
             self.injection_rate_stat.initialize(self.delta)
             self.stats_initialized = True
+            self._last_batch_time_window = current_time_window
+
+        # Check if we need to flush batches (time window change)
+        if self._last_batch_time_window is not None and current_time_window != self._last_batch_time_window:
+            emitted = self._flush_stat_batches(emitted)
+            self._last_batch_time_window = current_time_window
 
         self.delta = self.delta + self.estimators.tuple_sending_est()
 
-        # Update stats and collect emitted values
-        emitted = self._collect_stat_rows(
-            common.INJECTION_RATE_STAT_NAME,
-            self.injection_rate_stat.update(1, self.delta),
-            emitted,
-        )
+        # Accumulate injection rate count instead of updating immediately
+        self._accumulated_injection_rate_count += 1
+        self._batch_update_count += 1
+
+        # Flush if batch limit reached
+        if self._batch_update_count >= self.stat_batch_update_length:
+            emitted = self._flush_stat_batches(emitted)
+
         return emitted
 
     # ----------
@@ -195,6 +232,22 @@ class SourceSimulator:
 
         return (self.delta, has_more, emitted)
 
+    def step_until_stats(self) -> Tuple[float, bool, common.OptionalMetrics]:
+        """Process rows until actual stats are emitted.
+
+        Repeatedly calls step() until a non-None emitted value is returned.
+
+        Returns:
+            Tuple of (current_time, has_more, emitted_stats) where:
+                - current_time: The current simulation time (float)
+                - has_more: Whether there are more rows to process (bool)
+                - emitted_stats: Non-None statistics from the first step that produced them
+        """
+        while True:
+            cur_t, has_more, emitted = self.step()
+            if emitted is not None or not has_more:
+                return (cur_t, has_more, emitted)
+
     def finalize(self) -> Tuple[float, bool, common.OptionalMetrics]:
         """Finalize statistics collection after all tuples are processed.
 
@@ -204,6 +257,9 @@ class SourceSimulator:
             Tuple of (current_time, has_more, emitted_stats).
         """
         emitted = None
+
+        # Flush any remaining batched stats
+        emitted = self._flush_stat_batches(emitted)
 
         # Finalize stats (called by PipelineSimulator.run())
         emitted = self._collect_stat_rows(

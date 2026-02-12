@@ -140,7 +140,9 @@ if __name__ == "__main__":
 
     def make_estimator(base_value: float):
         """Return a callable producing samples within ±5% of base_value."""
-        return lambda: random.uniform(base_value * 0.95, base_value * 1.05)
+        # return lambda: random.uniform(base_value * 0.95, base_value * 1.05)
+        # Simplification: just return the base value without randomness:
+        return lambda: base_value
 
     # --- Create estimators using input values ---
     pane_creation_est = make_estimator(args.pane_creation)
@@ -183,6 +185,7 @@ if __name__ == "__main__":
         semantics=semantics,
         ts_offset=first_tuple_offset,
         write_to_disk=write_to_disk,
+        stat_batch_update_length=20000
     )
 
     source_sim = SourceSimulator(
@@ -193,12 +196,13 @@ if __name__ == "__main__":
         resolution=args.resolution,
         ts_offset=first_tuple_offset,
         write_to_disk=write_to_disk,
+        stat_batch_update_length=20000
     )
 
     pipeline = PipelineSimulator(source_sim, agg_sim)
 
     start_time = time.perf_counter()
-    pipeline.run(print_every=100000)
+    pipeline.run(print_every=100)
     end_time = time.perf_counter()
 
     print(f"Simulation completed in {(end_time - start_time):.3f} seconds.")

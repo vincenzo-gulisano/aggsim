@@ -45,6 +45,7 @@ class AggregateSimulator:
         semantics: common.Semantics,
         ts_offset: int,
         write_to_disk: bool = True,
+        stat_batch_update_length: int = 100,
     ) -> None:
         """Initialize the aggregate simulator.
 
@@ -59,6 +60,7 @@ class AggregateSimulator:
             resolution: Time resolution for internal quantization of event times.
             semantics: Processing semantics (AMO or EO).
             ts_offset: Time offset to apply to all timestamps.
+            stat_batch_update_length: Number of CPU/throughput operations to accumulate before flushing stats (default: 100).
 
         Raises:
             ValueError: If the cartesian product of was/wss is empty or if semantics is invalid.
@@ -70,6 +72,13 @@ class AggregateSimulator:
         self.estimators: common.EstimatorFunctions = estimators
         self.resolution: int = int(resolution)
         self.write_to_disk: bool = bool(write_to_disk)
+        self.stat_batch_update_length: int = stat_batch_update_length
+
+        # Batching state for CPU and throughput stats
+        self._accumulated_cpu_delta: float = 0.0
+        self._accumulated_throughput_count: int = 0
+        self._batch_update_count: int = 0
+        self._last_batch_time_window: Optional[int] = None
 
         # -----------------------------------------
         # Build the list of (WA, WS) combinations
@@ -192,6 +201,34 @@ class AggregateSimulator:
 
         return emitted
 
+    def _flush_stat_batches(self, emitted) -> common.OptionalMetrics:
+        """Flush accumulated batched stats (CPU and throughput).
+
+        Args:
+            emitted: Current emitted structure to update.
+
+        Returns:
+            Updated emitted structure with flushed stats.
+        """
+        if self._accumulated_cpu_delta > 0:
+            emitted = self._collect_stat_rows(
+                "cpu",
+                self.cpu_stat.update(self._accumulated_cpu_delta, self.delta),
+                emitted,
+            )
+            self._accumulated_cpu_delta = 0.0
+
+        if self._accumulated_throughput_count > 0:
+            emitted = self._collect_stat_rows(
+                "throughput.rate",
+                self.throughput_stat.update(self._accumulated_throughput_count, self.delta),
+                emitted,
+            )
+            self._accumulated_throughput_count = 0
+
+        self._batch_update_count = 0
+        return emitted
+
     def _get_earliest_boundary(self, tau: int) -> Tuple[int, int, int]:
         """Compute earliest left boundaries of the window and pane for a tuple.
 
@@ -235,6 +272,7 @@ class AggregateSimulator:
         # Update the current time
         self.delta = max(self.delta, tau + self.ts_offset)
         delta_start = self.delta
+        current_time_window = int(self.delta // self.resolution)
 
         if not self.stats_initialized:
             self.throughput_stat.initialize(self.delta)
@@ -243,6 +281,12 @@ class AggregateSimulator:
             self.cpu_stat.initialize(self.delta)
             self.output_rate_stat.initialize(self.delta)
             self.stats_initialized = True
+            self._last_batch_time_window = current_time_window
+
+        # Check if we need to flush batches (time window change or limit reached)
+        if self._last_batch_time_window is not None and current_time_window != self._last_batch_time_window:
+            emitted = self._flush_stat_batches(emitted)
+            self._last_batch_time_window = current_time_window
 
         # Handle reconfiguration if needed
         if (
@@ -289,11 +333,8 @@ class AggregateSimulator:
                 # The partial aggregate of this pane has not been computed yet
                 delta_before = self.delta
                 self.delta = self.delta + self.estimators.pane_aggregation_est()
-                emitted = self._collect_stat_rows(
-                    "cpu",
-                    self.cpu_stat.update(self.delta - delta_before, self.delta),
-                    emitted,
-                )
+                self._accumulated_cpu_delta += self.delta - delta_before
+                self._batch_update_count += 1
             # Mark the partial aggregate of this pane as computed
             self.aggregated_panes[self.earliest_pane_left] = True
             emitted = self._collect_stat_rows(
@@ -327,13 +368,8 @@ class AggregateSimulator:
                         else:
                             delta_before = self.delta
                             self.delta = self.delta + self.estimators.pane_merge_est()
-                            emitted = self._collect_stat_rows(
-                                "cpu",
-                                self.cpu_stat.update(
-                                    self.delta - delta_before, self.delta
-                                ),
-                                emitted,
-                            )
+                            self._accumulated_cpu_delta += self.delta - delta_before
+                            self._batch_update_count += 1
 
             temp_bool = True
             for k in outputs:
@@ -363,11 +399,8 @@ class AggregateSimulator:
                     for k in self.panes[pane_tau]:
                         delta_before = self.delta
                         self.delta = self.delta + self.estimators.pane_delete_est()
-                        emitted = self._collect_stat_rows(
-                            "cpu",
-                            self.cpu_stat.update(self.delta - delta_before, self.delta),
-                            emitted,
-                        )
+                        self._accumulated_cpu_delta += self.delta - delta_before
+                        self._batch_update_count += 1
                     emitted = self._collect_stat_rows(
                         "paneActive.count",
                         self.panes_stat.update(
@@ -388,19 +421,17 @@ class AggregateSimulator:
             self.panes[pane_left].add(k)
             delta_before = self.delta
             self.delta = self.delta + self.estimators.pane_creation_est()
-            emitted = self._collect_stat_rows(
-                "cpu",
-                self.cpu_stat.update(self.delta - delta_before, self.delta),
-                emitted,
-            )
+            self._accumulated_cpu_delta += self.delta - delta_before
+            self._batch_update_count += 1
         delta_before = self.delta
         self.delta = self.delta + self.estimators.pane_update_est()
-        emitted = self._collect_stat_rows(
-            "cpu", self.cpu_stat.update(self.delta - delta_before, self.delta), emitted
-        )
-        emitted = self._collect_stat_rows(
-            "throughput.rate", self.throughput_stat.update(1, self.delta), emitted
-        )
+        self._accumulated_cpu_delta += self.delta - delta_before
+        self._accumulated_throughput_count += 1
+        self._batch_update_count += 1
+
+        # Flush if batch limit reached
+        if self._batch_update_count >= self.stat_batch_update_length:
+            emitted = self._flush_stat_batches(emitted)
 
         self.earliest_pane_left = pane_left
         self.earliest_pane_right = pane_right
@@ -502,6 +533,22 @@ class AggregateSimulator:
 
         return (self.delta, has_more, emitted)
 
+    def step_until_stats(self) -> Tuple[float, bool, common.OptionalMetrics]:
+        """Process rows until actual stats are emitted.
+
+        Repeatedly calls step() until a non-None emitted value is returned.
+
+        Returns:
+            Tuple of (current_time, has_more, emitted_metrics) where:
+                - current_time: The current simulation time (float)
+                - has_more: Whether there are more rows to process (bool)
+                - emitted_metrics: Non-None statistics from the first step that produced them
+        """
+        while True:
+            cur_t, has_more, emitted = self.step()
+            if emitted is not None or not has_more:
+                return (cur_t, has_more, emitted)
+
     def finalize(self) -> Tuple[float, bool, common.OptionalMetrics]:
         """Finalize statistics collection after all tuples are processed.
 
@@ -511,6 +558,9 @@ class AggregateSimulator:
             Tuple of (current_time, has_more, emitted_metrics).
         """
         emitted = None
+
+        # Flush any remaining batched stats
+        emitted = self._flush_stat_batches(emitted)
 
         # Finalize stats (called by PipelineSimulator.run())
         emitted = self._collect_stat_rows(

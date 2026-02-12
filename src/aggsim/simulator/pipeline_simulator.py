@@ -30,6 +30,18 @@ class PipelineSimulator:
         self._agg_done = False
 
         self._metric_names = self.source.metric_names() + self.aggregate.metric_names()
+        self._src_n = len(self.source.metric_names())
+        self._agg_n = len(self.aggregate.metric_names())
+
+        # Track previous deltas for time validation
+        self._prev_src_delta: float = -inf
+        self._prev_agg_delta: float = -inf
+
+        self.first_call = True
+
+        # Track latest emitted for both simulators
+        self._last_src_emitted: OptionalMetrics = None
+        self._last_agg_emitted: OptionalMetrics = None
 
     @staticmethod
     def _min_time(a: float, b: float) -> float:
@@ -41,6 +53,32 @@ class PipelineSimulator:
 
     def metric_names(self) -> List[str]:
         return self._metric_names
+
+    def _empty_src(self) -> Metrics:
+        """Create empty source metrics structure."""
+        return [[] for _ in range(self._src_n)]
+
+    def _empty_agg(self) -> Metrics:
+        """Create empty aggregate metrics structure."""
+        return [[] for _ in range(self._agg_n)]
+
+    def _step_source(self) -> None:
+        """Advance source simulator and store emitted metrics (with empty agg metrics appended)."""
+        _, more, emitted = self.source.step_until_stats()
+        self._src_done = not more
+        if emitted is None:
+            self._last_src_emitted = None
+        else:
+            self._last_src_emitted = emitted + self._empty_agg()
+
+    def _step_agg(self) -> None:
+        """Advance aggregate simulator and store emitted metrics (with empty source metrics prepended)."""
+        _, more, emitted = self.aggregate.step_until_stats()
+        self._agg_done = not more
+        if emitted is None:
+            self._last_agg_emitted = None
+        else:
+            self._last_agg_emitted = self._empty_src() + emitted
 
     def change(self, wa: int, ws: int) -> None:
         """Request a reconfiguration of the window configuration in the aggregate simulator.
@@ -58,55 +96,80 @@ class PipelineSimulator:
     def step(self) -> Tuple[float, bool, OptionalMetrics]:
         """Advance one component and return the current simulation state.
 
+        On first call: initializes both source and aggregate by stepping until each
+        has a real time (> -inf).
+        On subsequent calls: steps the component with the smaller delta.
+
         Returns a tuple (cur_time, has_more, emitted) where `emitted` is either
         None or a list of per-metric emitted rows. The order of metrics in
         `emitted` matches `self.metric_names()`.
+
+        Raises:
+            RuntimeError: If time decreases in source or aggregate simulator.
         """
-        src_n = len(self.source.metric_names())
-        agg_n = len(self.aggregate.metric_names())
-
-        def empty_src() -> Metrics:
-            return [[] for _ in range(src_n)]
-
-        def empty_agg() -> Metrics:
-            return [[] for _ in range(agg_n)]
-
-        def step_source() -> OptionalMetrics:
-            _, more, emitted = self.source.step()
-            self._src_done = not more
-            if emitted is None:
-                return None
-            return emitted + empty_agg()
-
-        def step_agg() -> OptionalMetrics:
-            _, more, emitted = self.aggregate.step()
-            self._agg_done = not more
-            if emitted is None:
-                return None
-            return empty_src() + emitted
 
         # Both simulators finished: nothing more to do
         if self._src_done and self._agg_done:
-            cur_t = self._min_time(self.source.delta, self.aggregate.delta)
-            return (cur_t, False, None)
+            return (self._min_time(self.source.delta, self.aggregate.delta), False, None)
 
-        # choose which component to advance next
-        if not self._src_done and self.source.delta == -inf:
-            emitted_all = step_source()
-        elif not self._agg_done and self.aggregate.delta == -inf:
-            emitted_all = step_agg()
+        # # Store previous deltas to detect time decreases # REMOVE THIS ONCE BUG IS FIXED
+        # prev_src_delta = self.source.delta
+        # prev_agg_delta = self.aggregate.delta
+
+        if self.first_call:
+            self.first_call = False
+            # Initialize source until it has a real time
+            while self.source.delta == -inf and not self._src_done:
+                self._step_source()
+            # Initialize aggregate until it has a real time
+            while self.aggregate.delta == -inf and not self._agg_done:
+                self._step_agg()
+
+            if self.source.delta == -inf and self._src_done:
+                raise RuntimeError("Source simulator finished without changing to a non-infinite time.")
+            if self.aggregate.delta == -inf and self._agg_done:
+                raise RuntimeError("Aggregate simulator finished without changing to a non-infinite time.")
+
+        # After initialization (or on subsequent calls), step the one with smaller delta
+        if self._src_done:
+            # Only aggregate left, step it
+            self._step_agg()
         elif self._agg_done:
-            emitted_all = step_source()
-        elif self._src_done:
-            emitted_all = step_agg()
+            # Only source left, step it
+            self._step_source()
         else:
-            emitted_all = (
-                step_source()
-                if self.source.delta <= self.aggregate.delta
-                else step_agg()
-            )
+            # Both still have events: step the one with smaller delta
+            # (or step source if aggregate is done, etc.)
+            if self.source.delta <= self.aggregate.delta or self._agg_done:
+                self._step_source()
+            else:
+                self._step_agg()
 
-        cur_t = self._min_time(self.source.delta, self.aggregate.delta)
+        # Now return the emitted from whichever has the smaller delta
+        # (or return source if aggregate is done, or aggregate if source is done)
+        if self._agg_done or self.source.delta <= self.aggregate.delta:
+            emitted_all = self._last_src_emitted
+        else:
+            emitted_all = self._last_agg_emitted
+
+        # Check for time decreases
+        # if self.source.delta < prev_src_delta:
+        #     raise RuntimeError(
+        #         f"Source simulator time decreased: {prev_src_delta} -> {self.source.delta}."
+        #     )
+        # if self.aggregate.delta < prev_agg_delta:
+        #     raise RuntimeError(
+        #         f"Aggregate simulator time decreased: {prev_agg_delta} -> {self.aggregate.delta}."
+        #     )
+
+        # Return time from the simulator(s) that are still active
+        if self._agg_done:
+            cur_t = self.source.delta
+        elif self._src_done:
+            cur_t = self.aggregate.delta
+        else:
+            cur_t = self._min_time(self.source.delta, self.aggregate.delta)
+
         has_more_any = (not self._src_done) or (not self._agg_done)
         return (cur_t, has_more_any, emitted_all)
 
