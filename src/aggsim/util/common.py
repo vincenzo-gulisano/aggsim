@@ -2,6 +2,11 @@ from typing import Final, Optional, List, Tuple, Callable, Any
 from enum import Enum
 
 INJECTION_RATE_STAT_NAME: Final[str] = "injectionrate.rate"
+THROUGHPUT_STAT_NAME: Final[str] = "throughput.rate"
+LATENCY_STAT_NAME: Final[str] = "latency.average"
+PANES_STAT_NAME: Final[str] = "paneActive.count"
+CPU_STAT_NAME: Final[str] = "cpu"
+OUTPUT_RATE_STAT_NAME: Final[str] = "outrate.rate"
 
 # Define a shared type alias (optional but keeps signatures readable)
 

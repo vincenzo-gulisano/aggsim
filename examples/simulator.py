@@ -103,6 +103,17 @@ if __name__ == "__main__":
         required=True,
         help="Base time (in seconds) for tuple sending.",
     )
+    parser.add_argument(
+        "--print-every",
+        type=int,
+        default=0,
+        help="Print progress every N steps. Use 0 to disable progress output.",
+    )
+    parser.add_argument(
+        "--debug-table",
+        action="store_true",
+        help="Collect and print a pandas debug table of emitted metrics (slower).",
+    )
 
     args = parser.parse_args()
 
@@ -202,7 +213,7 @@ if __name__ == "__main__":
     pipeline = PipelineSimulator(source_sim, agg_sim)
 
     start_time = time.perf_counter()
-    pipeline.run(print_every=100)
+    pipeline.run(print_every=args.print_every, collect_debug_df=args.debug_table)
     end_time = time.perf_counter()
 
     print(f"Simulation completed in {(end_time - start_time):.3f} seconds.")

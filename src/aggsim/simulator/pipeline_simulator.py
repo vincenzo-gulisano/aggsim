@@ -8,7 +8,6 @@ or persistence by the caller.
 
 from typing import List, Optional, Tuple
 from math import inf
-import pandas as pd
 
 from .source_simulator import SourceSimulator
 from .aggregate_simulator import AggregateSimulator
@@ -173,11 +172,17 @@ class PipelineSimulator:
         has_more_any = (not self._src_done) or (not self._agg_done)
         return (cur_t, has_more_any, emitted_all)
 
-    def run(self, print_every: int = 10_000) -> None:
+    def run(
+        self,
+        print_every: int = 0,
+        collect_debug_df: bool = False,
+        max_debug_rows: int = 50_000,
+    ) -> None:
         """Run the pipeline until both components are exhausted.
 
-        Emitted metric rows are aggregated into an in-memory pandas DataFrame
-        that is periodically printed (controlled by `print_every`).
+        By default this method runs in fast mode and avoids constructing a pandas
+        DataFrame. Set `collect_debug_df=True` to build a debug table of emitted
+        values, and `print_every > 0` to periodically print status.
         """
 
         t0: Optional[float] = None
@@ -186,16 +191,20 @@ class PipelineSimulator:
         # accumulate counts of emitted rows per metric between prints
         metric_names = self.metric_names()
 
-        # Time-indexed table: index = ts, columns = metric names, values = v
-        df = pd.DataFrame(columns=metric_names)
-        df.index.name = "time"
+        should_print = print_every > 0
+        should_collect_df = collect_debug_df
+        df = None
+        if should_collect_df:
+            import pandas as pd
 
-        MAX_ROWS = 50_000
+            # Time-indexed table: index = ts, columns = metric names, values = v
+            df = pd.DataFrame(columns=metric_names)
+            df.index.name = "time"
 
         while True:
             cur_t, has_more_any, emitted = self.step()
 
-            if emitted is not None:
+            if should_collect_df and emitted is not None and df is not None:
                 for col_idx, rows in enumerate(emitted):
                     if not rows:
                         continue
@@ -213,24 +222,30 @@ class PipelineSimulator:
             if t0 is None and cur_t != -inf:
                 t0 = cur_t
 
-            if step_count % print_every == 0:
+            if should_print and step_count % print_every == 0:
                 elapsed = 0.0 if (t0 is None or cur_t == -inf) else (cur_t - t0)
-
-                # Sort by time (index), show last 100 rows
-                recent = df.sort_index().tail(100)
-
-                # show '-' instead of NaN for readability
-                recent_str = recent.to_string(na_rep="-")
-
-                # Multi-line output: print a snapshot of the recent rows
-                print(f"\nSim time: {elapsed:10.3f} more={has_more_any}\n{recent_str}\n", flush=True)
+                if should_collect_df and df is not None:
+                    # Sort by time (index), show last 100 rows
+                    recent = df.sort_index().tail(100)
+                    # show '-' instead of NaN for readability
+                    recent_str = recent.to_string(na_rep="-")
+                    # Multi-line output: print a snapshot of the recent rows
+                    print(
+                        f"\nSim time: {elapsed:10.3f} more={has_more_any}\n{recent_str}\n",
+                        flush=True,
+                    )
+                else:
+                    print(
+                        f"Sim time: {elapsed:10.3f} more={has_more_any} step={step_count}",
+                        flush=True,
+                    )
 
             step_count += 1
             if not has_more_any:
                 break
 
-            if len(df) > MAX_ROWS:
-                df = df.sort_index().tail(MAX_ROWS)
+            if should_collect_df and df is not None and len(df) > max_debug_rows:
+                df = df.sort_index().tail(max_debug_rows)
 
         # finalize both components
         self.aggregate.finalize()

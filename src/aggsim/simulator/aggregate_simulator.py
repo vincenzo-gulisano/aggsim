@@ -128,37 +128,37 @@ class AggregateSimulator:
 
         # Statistics
         self.throughput_stat: SumStat = SumStat(
-            self.output_folder + "/throughput.rate.csv", self.resolution, -1,
+            self.output_folder + "/" + common.THROUGHPUT_STAT_NAME + ".csv", self.resolution, -1,
             1,
             True,
             self.write_to_disk,
         )
         self.latency_stat: AvgStat = AvgStat(
-            self.output_folder + "/latency.average.csv", self.resolution, -1, 1000,
+            self.output_folder + "/" + common.LATENCY_STAT_NAME + ".csv", self.resolution, -1, 1000,
             self.write_to_disk,
         )
         self.panes_stat: SumStat = SumStat(
-            self.output_folder + "/paneActive.count.csv", self.resolution, -1, 1, False,
+            self.output_folder + "/" + common.PANES_STAT_NAME + ".csv", self.resolution, -1, 1, False,
             self.write_to_disk,
         )
         self.cpu_stat: SumStat = SumStat(
-            self.output_folder + "/cpu.csv", self.resolution, -1, 100,
+            self.output_folder + "/" + common.CPU_STAT_NAME + ".csv", self.resolution, -1, 100,
             True,
             self.write_to_disk,
         )
         self.output_rate_stat: SumStat = SumStat(
-            self.output_folder + "/outrate.rate.csv", self.resolution, -1,
+            self.output_folder + "/" + common.OUTPUT_RATE_STAT_NAME + ".csv", self.resolution, -1,
             1,
             True,
             self.write_to_disk,
         )
         self.stats_initialized: bool = False
         self._metric_names: List[str] = [
-            "throughput.rate",
-            "latency.average",
-            "paneActive.count",
-            "cpu",
-            "outrate.rate",
+            common.THROUGHPUT_STAT_NAME,
+            common.LATENCY_STAT_NAME,
+            common.PANES_STAT_NAME,
+            common.CPU_STAT_NAME,
+            common.OUTPUT_RATE_STAT_NAME,
         ]
         self._metric_idx: Dict[str, int] = {
             n: i for i, n in enumerate(self._metric_names)
@@ -212,7 +212,7 @@ class AggregateSimulator:
         """
         if self._accumulated_cpu_delta > 0:
             emitted = self._collect_stat_rows(
-                "cpu",
+                common.CPU_STAT_NAME,
                 self.cpu_stat.update(self._accumulated_cpu_delta, self.delta),
                 emitted,
             )
@@ -220,7 +220,7 @@ class AggregateSimulator:
 
         if self._accumulated_throughput_count > 0:
             emitted = self._collect_stat_rows(
-                "throughput.rate",
+                common.THROUGHPUT_STAT_NAME,
                 self.throughput_stat.update(self._accumulated_throughput_count, self.delta),
                 emitted,
             )
@@ -300,7 +300,7 @@ class AggregateSimulator:
             for pane_tau in self.panes.keys():
                 if self.aggregated_panes[pane_tau]:
                     emitted = self._collect_stat_rows(
-                        "paneActive.count",
+                        common.PANES_STAT_NAME,
                         self.panes_stat.update(
                             -1 * len(self.panes[pane_tau]), self.delta
                         ),
@@ -338,7 +338,7 @@ class AggregateSimulator:
             # Mark the partial aggregate of this pane as computed
             self.aggregated_panes[self.earliest_pane_left] = True
             emitted = self._collect_stat_rows(
-                "paneActive.count",
+                common.PANES_STAT_NAME,
                 self.panes_stat.update(
                     len(self.panes[self.earliest_pane_left]), self.delta
                 ),
@@ -374,12 +374,12 @@ class AggregateSimulator:
             temp_bool = True
             for k in outputs:
                 emitted = self._collect_stat_rows(
-                    "latency.average",
+                    common.LATENCY_STAT_NAME,
                     self.latency_stat.update(self.delta - delta_start, self.delta),
                     emitted,
                 )
                 emitted = self._collect_stat_rows(
-                    "outrate.rate", self.output_rate_stat.update(1, self.delta), emitted
+                    common.OUTPUT_RATE_STAT_NAME, self.output_rate_stat.update(1, self.delta), emitted
                 )
                 if temp_bool:
                     temp_bool = False
@@ -402,7 +402,7 @@ class AggregateSimulator:
                         self._accumulated_cpu_delta += self.delta - delta_before
                         self._batch_update_count += 1
                     emitted = self._collect_stat_rows(
-                        "paneActive.count",
+                        common.PANES_STAT_NAME,
                         self.panes_stat.update(
                             -1 * len(self.panes[pane_tau]), self.delta
                         ),
@@ -564,25 +564,25 @@ class AggregateSimulator:
 
         # Finalize stats (called by PipelineSimulator.run())
         emitted = self._collect_stat_rows(
-            "throughput.rate",
+            common.THROUGHPUT_STAT_NAME,
             self.throughput_stat.finalize(self.delta + 1 * self.resolution),
             emitted,
         )
         emitted = self._collect_stat_rows(
-            "latency.average",
+            common.LATENCY_STAT_NAME,
             self.latency_stat.finalize(self.delta + 1 * self.resolution),
             emitted,
         )
         emitted = self._collect_stat_rows(
-            "paneActive.count",
+            common.PANES_STAT_NAME,
             self.panes_stat.finalize(self.delta + 1 * self.resolution),
             emitted,
         )
         emitted = self._collect_stat_rows(
-            "cpu", self.cpu_stat.finalize(self.delta + 1 * self.resolution), emitted
+            common.CPU_STAT_NAME, self.cpu_stat.finalize(self.delta + 1 * self.resolution), emitted
         )
         emitted = self._collect_stat_rows(
-            "outrate.rate",
+            common.OUTPUT_RATE_STAT_NAME,
             self.output_rate_stat.finalize(self.delta + 1 * self.resolution),
             emitted,
         )
