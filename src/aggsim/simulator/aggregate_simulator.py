@@ -371,7 +371,6 @@ class AggregateSimulator:
                             self._accumulated_cpu_delta += self.delta - delta_before
                             self._batch_update_count += 1
 
-            temp_bool = True
             for k in outputs:
                 emitted = self._collect_stat_rows(
                     common.LATENCY_STAT_NAME,
@@ -381,8 +380,6 @@ class AggregateSimulator:
                 emitted = self._collect_stat_rows(
                     common.OUTPUT_RATE_STAT_NAME, self.output_rate_stat.update(1, self.delta), emitted
                 )
-                if temp_bool:
-                    temp_bool = False
             self.earliest_win_left += self.wa_ws_list[self.wa_ws_index][0]
 
             # Delete stale panes
